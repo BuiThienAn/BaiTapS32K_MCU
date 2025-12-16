@@ -6,36 +6,39 @@
 
 #define LOW_ADC_VALUE  1024
 #define MID_ADC_VALUE  2048
-#define HIGH_ADC_VALUE 3072 
+#define HIGH_ADC_VALUE 3072
 
-void WDOG_disable(){
-    IP_WDOG->CNT = 0xD928C520;
-    IP_WDOG->TOVAL = 0xFFFF;
-    IP_WDOG->CS = 0x2100; // Disable watchdog
-}
-
-void SOSC_init_8MHz(){
+void SOSC_init_8MHz(void)
+{
     IP_SCG->SOSCDIV = 0x00000101;
     IP_SCG->SOSCCFG = SCG_SOSCCFG_RANGE(2) | SCG_SOSCCFG_EREFS(1);
-    while (IP_SCG->SOSCCSR & SCG_SOSCCSR_LK_MASK);
+    while (IP_SCG->SOSCCSR & SCG_SOSCCSR_LK_MASK)
+    {
+        /*Do nothing*/
+    };
     IP_SCG->SOSCCSR |= SCG_SOSCCSR_SOSCEN(1);
-    while (!(IP_SCG->SOSCCSR & SCG_SOSCCSR_SOSCVLD_MASK));
+    while (!(IP_SCG->SOSCCSR & SCG_SOSCCSR_SOSCVLD_MASK))
+    {
+        /*Do nothing*/
+    };
 }
 
-void Clock_init(){
+void Clock_init(void)
+{
     /* Reset và cấu hình Clock cho ADC0 */
-    IP_PCC->PCCn[PCC_ADC0_INDEX] &= ~PCC_PCCn_CGC_MASK; // Tắt trước
-    IP_PCC->PCCn[PCC_ADC0_INDEX] &= ~PCC_PCCn_PCS_MASK; // Xóa nguồn cũ
-    IP_PCC->PCCn[PCC_ADC0_INDEX] |= PCC_PCCn_PCS(1);    // Chọn SOSCDIV2
-    IP_PCC->PCCn[PCC_ADC0_INDEX] |= PCC_PCCn_CGC_MASK;  // Bật lại
+    IP_PCC->PCCn[PCC_ADC0_INDEX] &= ~PCC_PCCn_CGC_MASK;
+    IP_PCC->PCCn[PCC_ADC0_INDEX] &= ~PCC_PCCn_PCS_MASK;
+    /* Chọn SOSCDIV2 */
+    IP_PCC->PCCn[PCC_ADC0_INDEX] |= PCC_PCCn_PCS(1);
+    IP_PCC->PCCn[PCC_ADC0_INDEX] |= PCC_PCCn_CGC_MASK;
 
     IP_PCC->PCCn[PCC_PORTD_INDEX] |= PCC_PCCn_CGC_MASK;
     IP_PCC->PCCn[PCC_PORTA_INDEX] |= PCC_PCCn_CGC_MASK;
 }
 
-void Port_init(){
+void Port_init(void)
+{
     IP_PORTA->PCR[6] &= ~PORT_PCR_MUX_MASK; // Analog Input
-    
     /* Dùng dấu = để đảm bảo cấu hình sạch sẽ */
     IP_PORTD->PCR[RED_LED_PIN]   = PORT_PCR_MUX(1);
     IP_PORTD->PCR[GREEN_LED_PIN] = PORT_PCR_MUX(1);
@@ -46,12 +49,11 @@ void Port_init(){
     IP_PTD->PSOR |= (1 << RED_LED_PIN) | (1 << GREEN_LED_PIN) | (1 << BLUE_LED_PIN);
 }
 
-void ADC_init(){
-    /* [SỬA LỖI] Dùng dấu = thay vì |= để xóa rác */
+void ADC_init(void)
+{
     /* MODE 12-bit, ADIV chia 1 */
     IP_ADC0->CFG1 = ADC_CFG1_ADIV(0) | ADC_CFG1_MODE(1);
 
-    /* [QUAN TRỌNG] Tăng thời gian lấy mẫu (Sample Time) */
     /* Mặc định là 13 cycles (khoảng 0xC). Tăng lên 0xFF (255 cycles) để đọc biến trở ổn định hơn */
     IP_ADC0->CFG2 = ADC_CFG2_SMPLTS(0xFF);
 
@@ -60,16 +62,21 @@ void ADC_init(){
 }
 
 /* Hàm đọc ADC có lọc trung bình cộng */
-int Read_ADC_Average(void) {
+int Read_ADC_Average(void)
+{
     uint32_t sum = 0;
-    int samples = 32; // Lấy mẫu 32 lần
+    /* Lấy mẫu 32 lần */
+    int samples = 32;
 
     for (int i = 0; i < samples; i++) {
         /* 1. Kích hoạt */
         IP_ADC0->SC1[0] = ADC_SC1_ADCH(2);
 
         /* 2. Chờ */
-        while (!(IP_ADC0->SC1[0] & ADC_SC1_COCO_MASK));
+        while (!(IP_ADC0->SC1[0] & ADC_SC1_COCO_MASK))
+        {
+            /*Do nothing*/
+        };
 
         /* 3. Cộng dồn vào biến tổng */
         sum += IP_ADC0->R[0];
@@ -79,8 +86,8 @@ int Read_ADC_Average(void) {
     return (sum / samples);
 }
 
-int main(){
-    WDOG_disable();
+int main(void)
+{
     SOSC_init_8MHz();
     Clock_init();
     Port_init();
@@ -88,7 +95,8 @@ int main(){
 
     int ADC_Value = 0;
 
-    while (1){
+    while (1)
+    {
         ADC_Value = Read_ADC_Average();
 
         /* 1. Reset trạng thái đèn (Tắt hết) trước khi bật màu mới */
@@ -99,13 +107,13 @@ int main(){
             IP_PTD->PCOR |= (1 << RED_LED_PIN);
         }
         else if (ADC_Value >= MID_ADC_VALUE) {
-            IP_PTD->PCOR |= (1 << GREEN_LED_PIN);            
+            IP_PTD->PCOR |= (1 << GREEN_LED_PIN);
         }
         else if (ADC_Value > LOW_ADC_VALUE) {
-            IP_PTD->PCOR |= (1 << BLUE_LED_PIN);            
+            IP_PTD->PCOR |= (1 << BLUE_LED_PIN);
         }
         else {
-            // Không làm gì (đã tắt hết ở trên)
+            /*Do nothing*/
         }
 
         /* Delay khoảng 10ms để mắt kịp nhìn */
