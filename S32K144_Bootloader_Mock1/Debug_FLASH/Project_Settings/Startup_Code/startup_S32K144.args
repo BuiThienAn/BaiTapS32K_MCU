@@ -1,0 +1,8 @@
+-c
+-I"C:/Users/Admin/workspaceS32DS.3.6.4/S32K144_Bootloader_Mock1/include"
+-x assembler-with-cpp
+-DSTART_FROM_FLASH
+-g3
+-mcpu=cortex-m4
+-specs=nano.specs
+-specs=nosys.specs
